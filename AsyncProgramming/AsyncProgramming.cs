@@ -18,12 +18,12 @@ namespace SharpKnP321.AsyncProgramming
         private readonly object cntLocker = new();
 
         // --- Поля для Д.З. (Випадкові числа) ---
-        private List<int> _generatedRandomValues = new();
-        private readonly object _valuesSyncLock = new();
+        private List<int> randomNumbers = new();
+        private readonly object randomLocker = new();
 
         // Поля для Task Д.З.
-        private int _pendingTaskCount;
-        private readonly object _taskCounterLock = new();
+        private int taskActiveCount;
+        private readonly object taskCntLocker = new();
 
         public void Run()
         {
@@ -86,38 +86,38 @@ namespace SharpKnP321.AsyncProgramming
         {
             Console.WriteLine("\n--- Homework: String Processing Chain ---");
             Console.WriteLine("Enter a sentence to process:");
-            string sourceSentence = Console.ReadLine();
+            string input = Console.ReadLine();
 
-            if (string.IsNullOrWhiteSpace(sourceSentence))
+            if (string.IsNullOrWhiteSpace(input))
             {
-                sourceSentence = "Hello world from Async Programming";
-                Console.WriteLine($"Empty input. Using default: \"{sourceSentence}\"");
+                input = "Hello world from Async Programming";
+                Console.WriteLine($"Empty input. Using default: \"{input}\"");
             }
 
             Console.WriteLine("\nStarting Task Chain...");
 
-            Task<string> invertWordsTask = Task.Run(() =>
+            Task<string> task1 = Task.Run(() =>
             {
-                string result = InvertWords(sourceSentence);
+                string result = InvertWords(input);
                 Console.WriteLine($"[Task 1 - Invert]: {result}");
                 return result;
             });
 
-            Task<string> caesarCipherTask = invertWordsTask.ContinueWith(prevTask =>
+            Task<string> task2 = task1.ContinueWith(prevTask =>
             {
                 string result = CaesarCipher(prevTask.Result, 3);
                 Console.WriteLine($"[Task 2 - Caesar]: {result}");
                 return result;
             });
 
-            Task<string> hideCharactersTask = caesarCipherTask.ContinueWith(prevTask =>
+            Task<string> task3 = task2.ContinueWith(prevTask =>
             {
                 string result = HideCharacters(prevTask.Result, '*');
                 Console.WriteLine($"[Task 3 - Hide]  : {result}");
                 return result;
             });
 
-            hideCharactersTask.Wait();
+            task3.Wait();
 
             Console.WriteLine("\nChain finished.");
         }
@@ -175,23 +175,23 @@ namespace SharpKnP321.AsyncProgramming
             Console.WriteLine("\n--- Homework: Async/Await Numbers ---");
             Console.Write("Enter count of numbers to generate: ");
 
-            if (int.TryParse(Console.ReadLine(), out int numbersToGenerateCount) && numbersToGenerateCount > 0)
+            if (int.TryParse(Console.ReadLine(), out int count) && count > 0)
             {
-                _generatedRandomValues = new List<int>();
-                var asyncWorkerTasks = new List<Task>();
+                randomNumbers = new List<int>();
+                var tasks = new List<Task>();
 
                 Console.WriteLine("Starting Async Tasks...");
 
-                for (int i = 0; i < numbersToGenerateCount; i++)
+                for (int i = 0; i < count; i++)
                 {
-                    asyncWorkerTasks.Add(RandomAsyncWorker());
+                    tasks.Add(RandomAsyncWorker());
                 }
 
-                await Task.WhenAll(asyncWorkerTasks);
+                await Task.WhenAll(tasks);
 
                 Console.WriteLine("\n--------------------------------");
                 Console.WriteLine("All async tasks finished.");
-                Console.WriteLine($"FINAL RESULT: [{string.Join(", ", _generatedRandomValues)}]");
+                Console.WriteLine($"FINAL RESULT: [{string.Join(", ", randomNumbers)}]");
                 Console.WriteLine("--------------------------------");
             }
             else
@@ -202,17 +202,17 @@ namespace SharpKnP321.AsyncProgramming
 
         private async Task RandomAsyncWorker()
         {
-            var rng = new Random();
-            int operationDelayMs = rng.Next(500, 2000);
+            var rnd = new Random();
+            int delay = rnd.Next(500, 2000);
 
-            await Task.Delay(operationDelayMs);
+            await Task.Delay(delay);
 
-            int generatedInteger = rng.Next(10, 100);
+            int number = rnd.Next(10, 100);
 
-            lock (_valuesSyncLock)
+            lock (randomLocker)
             {
-                _generatedRandomValues.Add(generatedInteger);
-                Console.WriteLine($"Async Task {Task.CurrentId} added {generatedInteger}. List: [{string.Join(", ", _generatedRandomValues)}]");
+                randomNumbers.Add(number);
+                Console.WriteLine($"Async Task {Task.CurrentId} added {number}. List: [{string.Join(", ", randomNumbers)}]");
             }
         }
         #endregion
@@ -223,14 +223,14 @@ namespace SharpKnP321.AsyncProgramming
             Console.WriteLine("\n--- Homework: Random Numbers via Tasks ---");
             Console.Write("Enter count of numbers to generate: ");
 
-            if (int.TryParse(Console.ReadLine(), out int targetNumbersCount) && targetNumbersCount > 0)
+            if (int.TryParse(Console.ReadLine(), out int count) && count > 0)
             {
-                _generatedRandomValues = new List<int>();
-                _pendingTaskCount = targetNumbersCount;
+                randomNumbers = new List<int>();
+                taskActiveCount = count;
 
                 Console.WriteLine("Starting Tasks...");
 
-                for (int i = 0; i < targetNumbersCount; i++)
+                for (int i = 0; i < count; i++)
                 {
                     Task.Run(RandomTaskWorker);
                 }
@@ -243,33 +243,33 @@ namespace SharpKnP321.AsyncProgramming
 
         private void RandomTaskWorker()
         {
-            var rng = new Random();
-            int workerDelayMs = rng.Next(500, 2000);
-            Thread.Sleep(workerDelayMs);
+            var rnd = new Random();
+            int delay = rnd.Next(500, 2000);
+            Thread.Sleep(delay);
 
-            int newNumber = rng.Next(10, 100);
-            bool isFinalWorker = false;
+            int number = rnd.Next(10, 100);
+            bool isLast = false;
 
-            lock (_valuesSyncLock)
+            lock (randomLocker)
             {
-                _generatedRandomValues.Add(newNumber);
-                Console.WriteLine($"Task {Task.CurrentId} added {newNumber}. List: [{string.Join(", ", _generatedRandomValues)}]");
+                randomNumbers.Add(number);
+                Console.WriteLine($"Task {Task.CurrentId} added {number}. List: [{string.Join(", ", randomNumbers)}]");
             }
 
-            lock (_taskCounterLock)
+            lock (taskCntLocker)
             {
-                _pendingTaskCount--;
-                if (_pendingTaskCount == 0)
+                taskActiveCount--;
+                if (taskActiveCount == 0)
                 {
-                    isFinalWorker = true;
+                    isLast = true;
                 }
             }
 
-            if (isFinalWorker)
+            if (isLast)
             {
                 Console.WriteLine("\n--------------------------------");
                 Console.WriteLine("Last Task Reporting:");
-                Console.WriteLine($"FINAL RESULT: [{string.Join(", ", _generatedRandomValues)}]");
+                Console.WriteLine($"FINAL RESULT: [{string.Join(", ", randomNumbers)}]");
                 Console.WriteLine("--------------------------------");
                 Console.WriteLine("Press any key to refresh menu...");
             }
@@ -422,28 +422,28 @@ namespace SharpKnP321.AsyncProgramming
         private void HomeworkRandomThreads()
         {
             Console.Write("\nEnter count of numbers to generate: ");
-            if (int.TryParse(Console.ReadLine(), out int desiredNumbersCount) && desiredNumbersCount > 0)
+            if (int.TryParse(Console.ReadLine(), out int count) && count > 0)
             {
-                _generatedRandomValues = new List<int>();
-                List<Thread> generationThreads = new List<Thread>();
+                randomNumbers = new List<int>();
+                List<Thread> threads = new List<Thread>();
 
                 Console.WriteLine("Starting threads...");
 
-                for (int i = 0; i < desiredNumbersCount; i++)
+                for (int i = 0; i < count; i++)
                 {
                     var t = new Thread(RandomNumberThreadWorker);
-                    generationThreads.Add(t);
+                    threads.Add(t);
                     t.Start();
                 }
 
-                foreach (var t in generationThreads)
+                foreach (var t in threads)
                 {
                     t.Join();
                 }
 
                 Console.WriteLine("\n--------------------------------");
                 Console.WriteLine("All threads finished. Main thread reporting:");
-                Console.WriteLine($"FINAL RESULT: [{string.Join(", ", _generatedRandomValues)}]");
+                Console.WriteLine($"FINAL RESULT: [{string.Join(", ", randomNumbers)}]");
                 Console.WriteLine("--------------------------------");
             }
             else
@@ -454,16 +454,16 @@ namespace SharpKnP321.AsyncProgramming
 
         private void RandomNumberThreadWorker()
         {
-            var rng = new Random();
-            int threadDelayMs = rng.Next(500, 2000);
-            Thread.Sleep(threadDelayMs);
+            var rnd = new Random();
+            int delay = rnd.Next(500, 2000);
+            Thread.Sleep(delay);
 
-            int randomNumber = rng.Next(10, 100);
+            int number = rnd.Next(10, 100);
 
-            lock (_valuesSyncLock)
+            lock (randomLocker)
             {
-                _generatedRandomValues.Add(randomNumber);
-                Console.WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId} added {randomNumber}. List: [{string.Join(", ", _generatedRandomValues)}]");
+                randomNumbers.Add(number);
+                Console.WriteLine($"Thread {Thread.CurrentThread.ManagedThreadId} added {number}. List: [{string.Join(", ", randomNumbers)}]");
             }
         }
         #endregion
